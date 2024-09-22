@@ -17,11 +17,19 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#ffffff",
+        "minSdkVersion": 24
+      },
+      "package": "com.paulo.sergio.shoplist"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "42d59a79-3601-46f5-ad56-6440cd199b2f"
+      }
+    },
+    "owner": "paulo.sergio"
   }
 }

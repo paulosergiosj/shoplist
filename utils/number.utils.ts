@@ -9,3 +9,11 @@ export function stringValorParaFloat(numero) {
         .replace(',', '.')
         .trim());
 }
+
+export function floatParaStringValor(numero) {
+    if (numero === undefined || numero === null || numero === '') {
+        return 0;
+    }
+
+    return numero.toString().replace('.', ',');
+}

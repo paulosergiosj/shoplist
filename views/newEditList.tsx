@@ -5,9 +5,9 @@ import { Colors } from '../constants/Colors';
 import { ItemListaModal } from '../components/itemListaModal';
 import { ItemLista } from '../interfaces/itemLista';
 import { ListItem } from 'react-native-elements';
-import { stringValorParaFloat } from '../utils/number.utils';
+import { floatParaStringValor, stringValorParaFloat } from '../utils/number.utils';
 import { maskCurrency } from '../utils/mask.utils';
-import { Appbar, Menu, TextInput } from 'react-native-paper';
+import { Appbar, Menu, Searchbar, TextInput } from 'react-native-paper';
 import { ListaRepository } from '../database/listaRepository';
 import { ListaEntity } from '../entities/listaEntity';
 import { ItemListaEntity } from '../entities/itemListaEntity';
@@ -21,6 +21,8 @@ export const NewEditListView = ({ navigation, route }) => {
     const [modalVisible, setModalVisible] = useState(false);
     const [totalizador, setTotalizador] = useState('R$0,00');
     const [nextLocalId, setNextLocalId] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filteredData, setFilteredData] = useState(items);
     const [idLista, setIdLista] = useState(0);
     const saindoAposSalvar = useRef(false);
 
@@ -36,6 +38,7 @@ export const NewEditListView = ({ navigation, route }) => {
         totalizadorRef.current = totalizador;
         itemsRef.current = items;
         itemModalRef.current = itemModal;
+        setFilteredData(items);
     }, [tituloLista, totalizador, items, itemModal]);
 
     useFocusEffect(
@@ -45,14 +48,14 @@ export const NewEditListView = ({ navigation, route }) => {
                     var lista = await listaRepository.getById(route.params.id);
                     setTituloLista(lista.titulo);
                     setTotalizador(maskCurrency(lista.total));
-                    setIdLista(lista.id)
+                    setIdLista(lista.id);
 
                     var itens: ItemLista[] = [];
                     var itensEntity = await itemListaRepository.getAllByListaId(route.params.id);
                     for (let index = 0; index < itensEntity.length; index++) {
                         var item = itensEntity[index];
 
-                        var itemLista = new ItemLista(item.descricao, item.informarPeso, !item.informarPeso ? maskCurrency(item.valor) : '0,00', maskCurrency(item.valorTotal), !item.informarPeso ? item.quantidade.toString() : '0', item.informarPeso ? maskCurrency(item.valorKg) : '0,00', item.informarPeso ? item.peso.toString() : '0');
+                        var itemLista = new ItemLista(item.descricao, item.informarPeso, !item.informarPeso ? maskCurrency(item.valor) : '0,00', maskCurrency(item.valorTotal), !item.informarPeso ? item.quantidade.toString() : '0', item.informarPeso ? maskCurrency(item.valorKg) : '0,00', item.informarPeso ? floatParaStringValor(item.peso) : '0');
 
                         itemLista.localId = index;
                         itens.push(itemLista);
@@ -82,6 +85,11 @@ export const NewEditListView = ({ navigation, route }) => {
     const handleOptionSelect = (option) => {
         if (option == 1) {
             salvarLista();
+        }
+
+        if (option == 2) {
+            recalcularTotalizador(itemsRef.current);
+            Alert.alert("Sucesso", "Totalizador recalculado");
         }
         hideMenu();
     };
@@ -114,6 +122,14 @@ export const NewEditListView = ({ navigation, route }) => {
         return nextLocalId;
     }
 
+    const onChangeSearch = (query) => {
+        setSearchQuery(query);
+        const newData = items.filter(item =>
+            item.descricao.toLowerCase().includes(query.toLowerCase())
+        );
+        setFilteredData(newData);
+    };
+
     // React.useLayoutEffect(() => {
     //     navigation.setOptions({
     //         headerRight: () => (
@@ -138,8 +154,8 @@ export const NewEditListView = ({ navigation, route }) => {
                         style={{ marginTop: 80 }}
                     >
                         <Menu.Item onPress={() => handleOptionSelect(1)} title="Salvar" />
-                        {/* <Menu.Item onPress={() => handleOptionSelect('Opção 2')} title="Opção 2" />
-                        <Menu.Item onPress={() => handleOptionSelect('Opção 3')} title="Opção 3" /> */}
+                        <Menu.Item onPress={() => handleOptionSelect(2)} title="Recalcular totalizador" />
+                        {/* <Menu.Item onPress={() => handleOptionSelect('Opção 3')} title="Opção 3" /> */}
                     </Menu>
                 </Appbar.Header>
             ),
@@ -167,7 +183,6 @@ export const NewEditListView = ({ navigation, route }) => {
             );
         });
 
-        // Remove o listener quando o componente é desmontado
         return unsubscribe;
     }, [navigation]);
 
@@ -208,6 +223,7 @@ export const NewEditListView = ({ navigation, route }) => {
 
     function MapearListaItensParaEntity() {
         var itens: ItemListaEntity[] = [];
+
         itemsRef.current.forEach(x => {
             itens.push({
                 descricao: x.descricao,
@@ -228,17 +244,20 @@ export const NewEditListView = ({ navigation, route }) => {
     }
 
     const onSubmitedModal = (item: ItemLista, editando: boolean) => {
+        var totalizadorAtualizado = stringValorParaFloat(totalizadorRef.current);
+
         if (!editando) {
             item.localId = novoIdLocal();
             setItems([...items, item]);
         } else {
+            var valorAnterior = stringValorParaFloat(items.filter(x => x.localId == item.localId)[0].valorTotal);
+            totalizadorAtualizado = totalizadorAtualizado - valorAnterior;
             var novaLista = items.filter(x => x.localId != item.localId);
             novaLista.push(item);
-            novaLista.sort(x => x.localId);
+            novaLista.sort((a, b) => a.localId - b.localId);
             setItems(novaLista);
         }
-
-        setTotalizador(maskCurrency(stringValorParaFloat(totalizador) + stringValorParaFloat(item.valorTotal)));
+        setTotalizador(maskCurrency(totalizadorAtualizado + stringValorParaFloat(item.valorTotal)));
         closeModal();
     }
 
@@ -298,6 +317,12 @@ export const NewEditListView = ({ navigation, route }) => {
                     Total:{totalizador}
                 </Text>
             </View>
+            <Searchbar
+                placeholder="Buscar"
+                onChangeText={onChangeSearch}
+                value={searchQuery}
+                style={{ marginBottom: 20, marginTop: 10 }}
+            />
             <TextInput
                 keyboardType="default"
                 selectionColor={'black'}
@@ -309,7 +334,8 @@ export const NewEditListView = ({ navigation, route }) => {
             <View style={styles.flatListView}>
                 <FlatList
                     keyExtractor={list => String(list.localId)}
-                    data={items}
+                    //data={items}
+                    data={filteredData}
                     renderItem={obterItensLista}
                 />
             </View>
@@ -325,7 +351,7 @@ export const NewEditListView = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
     flatListView: {
-        height: '70%'
+        height: '65%'
     },
     text_totalizador: {
         fontSize: 20,
@@ -358,7 +384,7 @@ const styles = StyleSheet.create({
     button: {
         width: '80%',
         backgroundColor: Colors.dark.tint,
-        marginTop: 100,
+        marginTop: 70,
         padding: 15,
         borderWidth: 2,
         borderColor: Colors.light.tint,
